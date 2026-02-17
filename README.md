@@ -1,8 +1,8 @@
-# Elastic Detection-as-Code (DaC) for Elastic SIEM
+# Elastic Detection-as-Code (DaC) for Elastic SIEM with AI-Assisted Rule Repair
 
 [![Validate Rules](https://github.com/GBinion2020/Elastic-Detection-as-Code/actions/workflows/validate.yml/badge.svg)](https://github.com/GBinion2020/Elastic-Detection-as-Code/actions/workflows/validate.yml)
 
-This repository implements a Detection-as-Code pipeline for Elastic SIEM where detection content is treated like software: authored in version control, validated against a schema contract, corrected through human-in-the-loop review, and prepared for deployment.
+This repository implements a Detection-as-Code pipeline for Elastic SIEM where detection content is treated like software: authored in version control, validated against a schema contract, corrected through a human-in-the-loop AI remediation engine, and prepared for deployment.
 
 ## Why this project exists
 
@@ -12,11 +12,11 @@ Detection engineering quality fails most often in three places:
 - Query language formatting: YAML or query mistakes block deployment or produce incorrect matching behavior.
 - Review bottlenecks: manual correction cycles are slow and inconsistent.
 
-This project addresses those failure modes by combining strict schema validation with an interactive remediation workflow that supports both manual editing and AI-assisted correction.
+This project addresses those failure modes by combining strict schema validation with an interactive remediation workflow centered on AI-assisted correction, with analyst approval gates before write-back.
 
 ## Research-grade architecture overview
 
-The system uses a staged governance model:
+The system uses a staged governance model with AI as the primary remediation accelerator:
 
 1. Authoring layer: analysts create or update rules under `Detections/**/*.yml`.
 2. Contract layer: rules must satisfy `Schemas/Schema1.yaml`, a JSON Schema contract for Elastic query-based detections.
@@ -24,6 +24,17 @@ The system uses a staged governance model:
 4. Assurance layer: every corrected rule is revalidated before write-back and before CI passes.
 
 The schema contract is designed for Elastic detection rule structure and Elastic query workflows (for example `language: kuery` for KQL-based detections), with strict typing for critical fields such as `risk_score`, `severity`, `enabled`, `index`, `tags`, and `references`.
+
+## AI remediation engine
+
+The AI pipeline is a first-class component, not an add-on:
+
+- `scripts/ai_validator.py` sends invalid detection YAML to the OpenAI Responses API with strict editing constraints.
+- The model proposes corrected YAML only; the output is revalidated against schema before any write occurs.
+- `run.py` prints the candidate in terminal, collects analyst approval, and supports iterative feedback loops.
+- If rejected, the user can provide revision guidance and the model retries (up to 3 attempts by default).
+- If approved, the corrected rule is written back to its original file path and revalidated.
+- If not approved after max attempts, the original detection content can be preserved unchanged.
 
 ## System flow diagram
 
@@ -71,7 +82,7 @@ flowchart TB
 
 ## Core workflows
 
-### 1) Interactive local workflow (recommended for authors)
+### 1) Interactive local workflow (recommended, AI-first)
 
 Run from repo root:
 
@@ -123,7 +134,7 @@ python3 scripts/ai_validator.py --files "Detections/Windows/test_fail.yml" --mod
 python3 -m pip install -r requirements.txt
 ```
 
-### Configure environment variables
+### Configure environment variables (required for AI remediation)
 
 Create `.env` in repo root:
 
@@ -137,13 +148,13 @@ Compatibility aliases are also supported:
 - `OPENAI_API` (alias for `OPENAI_API_KEY`)
 - `MODEL` (alias for `OPENAI_MODEL`)
 
-## CI behavior
+## CI behavior (AI-aware validation)
 
 The workflow in `.github/workflows/validate.yml`:
 
 1. Installs dependencies from `requirements.txt`.
 2. Runs `scripts/validate_rules.py`.
-3. Uses `OPENAI_API_KEY` and `OPENAI_MODEL` from workflow environment for AI-assisted repair if enabled.
+3. Uses `OPENAI_API_KEY` and `OPENAI_MODEL` from workflow environment for AI-assisted repair when needed.
 
 Recommended GitHub secret:
 
@@ -176,4 +187,3 @@ cd Elastic-Detection-as-Code
 python3 -m pip install -r requirements.txt
 python3 run.py
 ```
-
