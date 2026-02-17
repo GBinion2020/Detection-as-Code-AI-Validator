@@ -1,0 +1,34 @@
+rule_id: APT29_PowerShell_Obfuscation
+name: APT29 PowerShell Obfuscation
+description: >
+  Detects obfuscated PowerShell commands using char casting and type definitions, a technique observed in APT29 campaigns to evade detection.
+type: query
+language: kuery
+
+query: |
+  event.code : "4104" and message : "char" and message : "Type" and message : "string"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.defense_evasion
+  - attack.t1027
+  - apt29
+
+references:
+  - https://attack.mitre.org/techniques/T1027/
+
+author: 
+  - Gabriel_binion
+version: 1.0

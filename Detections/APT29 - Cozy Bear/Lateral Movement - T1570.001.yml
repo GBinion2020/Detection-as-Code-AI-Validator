@@ -1,0 +1,36 @@
+rule_id: APT29_Lateral_Movement_SMB_SkipCert
+name: APT29 Lateral Movement - SMB Mapping Skip Cert
+description: >
+  Detects the creation of a new SMB mapping with the "Skipcertificatecheck" flag, a technique often used for lateral movement to bypass security checks. This behavior is associated with APT29 campaigns.
+type: query
+language: kuery
+
+query: |
+ (process.args:"Powershell.exe" or process.args: "Cmd.exe") or 
+ (event.code: "4104") and 
+ (message: "New-smbmapping" and message:"Skipcertificatecheck")
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.lateral_movement
+  - attack.t1570
+  - apt29
+
+references:
+  - https://attack.mitre.org/techniques/T1570/
+
+author: 
+  - Gabriel_binion
+version: 1.0

@@ -1,0 +1,34 @@
+rule_id: APT29_Persistence_AccountManipulation
+name: APT29 Persistence - Local Account Manipulation
+description: >
+  Detects suspicious local account manipulation using the Rename-LocalUser cmdlet, specifically targeting the Administrators group. This behavior is indicative of an adversary attempting to maintain persistence or disguise privileged accounts, as observed in APT29 campaigns.
+type: query
+language: kuery
+
+query: |
+  message: "Rename-localUser" and message: "Administrators" and message: "set-" and event.code:"600"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.persistence
+  - attack.t1098
+  - apt29
+
+references:
+  - https://attack.mitre.org/techniques/T1098/
+
+author: 
+  - Gabriel_binion
+version: 1.0

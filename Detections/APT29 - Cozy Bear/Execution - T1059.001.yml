@@ -1,0 +1,36 @@
+rule_id: APT29_PowerShell_AutoIt_Execution
+name: APT29 PowerShell AutoIt Execution
+description: >
+  Detects the execution of AutoIt scripts via PowerShell using Start-Process, a technique observed in APT29 / SolarWinds campaigns.
+type: query
+language: kuery
+
+query: |
+  (process.args: "powershell.exe" or process.args: "cmd.exe") and 
+  message : "/Autoit3/" and
+  message : "Start-Process"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - apt29
+
+references:
+  - https://attack.mitre.org/groups/G0016/
+
+author: 
+  - Gabriel_binion
+version: 1.0

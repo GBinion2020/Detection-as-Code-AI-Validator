@@ -1,0 +1,34 @@
+rule_id: APT29_Discovery_WinPwn
+name: APT29 System Information Discovery via WinPwn
+description: >
+  Detects the execution of the WinPwn discovery tool using PowerShell or CMD, specifically looking for the "winpwn.ps1" script and "New-Object" instantiation. This tool is often used for internal reconnaissance.
+type: query
+language: kuery
+
+query: |
+  (process.args: "Powershell.exe" or process.args: "cmd.exe") and message: "*winpwn*" and message: "winpwn.ps1" and message: "New-Object"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.discovery
+  - attack.t1082
+  - apt29
+
+references:
+  - https://attack.mitre.org/techniques/T1082/
+
+author: 
+  - Gabriel_binion
+version: 1.0

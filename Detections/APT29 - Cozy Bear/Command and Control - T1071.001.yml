@@ -1,0 +1,34 @@
+rule_id: APT29_C2_Telnet_Usage
+name: APT29 Command and Control - Telnet Usage
+description: >
+  Detects the use of Telnet via PowerShell or CMD, which can be used for Command and Control (C2) communications. Telnet is often used by adversaries to establish unencrypted remote connections.
+type: query
+language: kuery
+
+query: |
+  event.category :"process" and message:"telnet_client.exe" and (process.args :"powershell.exe" or process.args: "Cmd.exe")
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.command_and_control
+  - attack.t1071.001
+  - apt29
+
+references:
+  - https://attack.mitre.org/techniques/T1071/001/
+
+author: 
+  - Gabriel_binion
+version: 1.0

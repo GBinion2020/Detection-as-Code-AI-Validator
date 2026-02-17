@@ -1,0 +1,28 @@
+rule_id: <unique_rule_id> #Used by Elastic to update rules, must be unique
+name: <Short descriptive title> #Human facing title
+description: > #Human facing description
+  <What this detects, why it matters, and how attackers use it> 
+type: eql #Type of rule
+language: eql #Language of rule, eql or kql
+
+query: |
+  <EQL query here>
+
+index:
+  - <elastic_index_pattern>
+
+severity: <low | medium | high | critical>
+risk_score: <0-100>
+
+enabled: true
+
+tags:
+  - attack.<tactic>
+  - attack.<technique>
+  - <tool_or_behavior>
+
+references:
+  - <optional_url>
+
+author: <your_name>
+version: <verions>

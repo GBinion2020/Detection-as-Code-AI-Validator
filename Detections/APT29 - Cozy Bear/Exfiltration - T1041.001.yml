@@ -1,0 +1,34 @@
+rule_id: APT29_Exfiltration_InvokeWebRequest_Post
+name: APT29 Exfiltration via Invoke-WebRequest
+description: >
+  Detects the use of `Invoke-WebRequest` with the `-DisableKeepAlive` parameter and `POST` method via PowerShell. This combination is often used for data exfiltration over C2 channels, as observed in APT29 campaigns.
+type: query
+language: kuery
+
+query: |
+  message : "Invoke-WebRequest" and message: "-DisableKeepAlive" and process.args : "powershell.exe" and message: "POST"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.exfiltration
+  - attack.t1041
+  - apt29
+
+references:
+  - https://attack.mitre.org/techniques/T1041/
+
+author: 
+  - Gabriel_binion
+version: 1.0

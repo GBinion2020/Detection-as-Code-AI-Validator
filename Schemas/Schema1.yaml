@@ -1,0 +1,90 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: Elastic Detection Rule
+type: object
+required:
+  - rule_id
+  - name
+  - description
+  - type
+  - language
+  - query
+  - index
+  - severity
+  - risk_score
+  - enabled
+  - tags
+  - references
+  - author
+  - version
+properties:
+  rule_id:
+    type: string
+    minLength: 1
+  name:
+    type: string
+    minLength: 1
+  description:
+    type: string
+    minLength: 1
+  type:
+    type: string
+    minLength: 1
+  language:
+    type: string
+    minLength: 1
+  query:
+    type: string
+    minLength: 1
+  index:
+    type: array
+    minItems: 1
+    items:
+      type: string
+      minLength: 1
+  severity:
+    type: string
+    enum:
+      - low
+      - medium
+      - high
+      - critical
+  risk_score:
+    type: integer
+    minimum: 0
+    maximum: 100
+  enabled:
+    type: boolean
+  tags:
+    type: array
+    minItems: 1
+    items:
+      type: string
+      minLength: 1
+  references:
+    type: array
+    minItems: 1
+    items:
+      type: string
+      minLength: 1
+  author:
+    oneOf:
+      - type: string
+        minLength: 1
+      - type: array
+        minItems: 1
+        items:
+          type: string
+          minLength: 1
+  version:
+    oneOf:
+      - type: number
+        minimum: 0
+      - type: string
+        minLength: 1
+  interval:
+    type: string
+    minLength: 1
+  from:
+    type: string
+    minLength: 1
+additionalProperties: true
