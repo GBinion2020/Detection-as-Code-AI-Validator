@@ -14,9 +14,9 @@ Detection engineering quality fails most often in three places:
 
 This project addresses those failure modes by combining strict schema validation with an interactive remediation workflow centered on AI-assisted correction, with analyst approval gates before write-back.
 
-## Research-grade architecture overview
+## Architecture overview
 
-The system uses a staged governance model with AI as the primary remediation accelerator:
+The system follows a staged governance model:
 
 1. Authoring layer: analysts create or update rules under `Detections/**/*.yml`.
 2. Contract layer: rules must satisfy `Schemas/Schema1.yaml`, a JSON Schema contract for Elastic query-based detections.
@@ -27,7 +27,7 @@ The schema contract is designed for Elastic detection rule structure and Elastic
 
 ## AI remediation engine
 
-The AI pipeline is a first-class component, not an add-on:
+When a rule fails schema validation, the AI remediation flow can assist with correction while keeping the analyst in control:
 
 - `scripts/ai_validator.py` sends invalid detection YAML to the OpenAI Responses API with strict editing constraints.
 - The model proposes corrected YAML only; the output is revalidated against schema before any write occurs.
