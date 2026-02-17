@@ -70,6 +70,24 @@ flowchart TB
     V --> CI
 ```
 
+## Workflow screenshots
+
+1. CLI entrypoint and test prompt.
+
+![CLI entrypoint](Screenshots/01-cli-start.png)
+
+2. Schema validation failure detection and manual/AI decision gate.
+
+![Schema failure and fix mode choice](Screenshots/02-schema-fail-and-choice.png)
+
+3. AI revision preview shown to analyst before approval.
+
+![AI revision preview](Screenshots/03-ai-revision-preview.png)
+
+4. Final corrected rule persisted to the detection file.
+
+![Final updated rule in detection path](Screenshots/04-final-updated-rule.png)
+
 ## Repository structure
 
 - `Detections/`: detection content authored as YAML files.

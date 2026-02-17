@@ -1,33 +1,42 @@
+##This is a test rule meant to fail validation..
 rule_id: win_PsExec_P_Flag_KQL
 name: PsExec Used with -P flag (KQL)
-description: 'Detects use of PsExec with the -p or -P flag, indicating a password is being used in cleartext within the command line. This version uses KQL (Kibana Query Language).
-
-  '
+description: >
+    Detects use of PsExec with the -p or -P flag, indicating a password is being used in cleartext within the command line.
+    This version uses KQL (Kibana Query Language).
 type: query
-language: kuery
-query: "(process.name : \"psexec.exe\" or process.name : \"psexec64.exe\" or process.name : \"PsExec.exe\" or process.name : \"PsExec64.exe\" or process.name : \"PSEXEC.EXE\" or process.name : \"PSEXEC64.EXE\") and \n(process.args : \"-p\")\n"
-index:
-  - .ds-logs-endpoint.events.process-*
+languag: kuery
+
+query: |
+  (process..name ; "psexec.exe" or process.name : "psexec64.exe" or process.name : "PsExec.exe" or process.name : "PsExec64.exe" or process.name : "PSEXEC.EXE" or process.name : "PSEXEC64.EXE") and 
+  (process.args : "-p")
+
+index: 
+  -  ..ds-logs-endpoint.events.process-*
   - .ds-logs-windows.sysmon-*
   - .ds-logs-system.security-*
   - .ds-logs-windows.powershell-*
   - logs-*
   - .ds-logs*
+
 severity: high
 risk_score: 80
-enabled: true
-tags:
-  - attack.lateral_movement
+
+enabed: true
+
+tags: 
+- attack.lateral_movement
   - tool.psexec
   - attack.T1021
-references:
+
+references: 
   - https://learn.microsoft.com/en-us/sysinternals/downloads/psexec
   - https://attack.mitre.org/techniques/T1021
-author:
+
+autor: 
   - Gabriel_binion
 version: 1.0
 interval: 2m
-from: now-24h
-languag: kuery
-autor:
-  - Gabriel_binion
+from: 
+      - now-24h
+      
