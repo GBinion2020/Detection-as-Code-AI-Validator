@@ -84,15 +84,11 @@ flowchart TB
 
 ![02 schema failure and fix mode choice](Screenshots/02-schema-fail-and-choice.png)
 
-4. `03` Initial AI proposal is shown for analyst review.
-
-![03 AI revision preview](Screenshots/03-ai-revision-preview.png)
-
 5. `03.5` First AI-fix view after entering AI mode.
 
 ![03.5 initial AI fix](Screenshots/03.5%20initial%20fix.png)
 
-6. `3.8` Analyst rejects and provides targeted revision feedback.
+6. `3.8` Analyst has the ability to request a tweak.
 
 ![3.8 request change](Screenshots/3.8%20Request%20change.png)
 
@@ -100,7 +96,7 @@ flowchart TB
 
 ![3.9 last fix](Screenshots/3.9%20last%20fix.png)
 
-8. `04` Final approved detection is written back to the rule file.
+8. `04` After accepting the approved detection is auto updated back to the rule file.
 
 ![04 final updated rule](Screenshots/04-final-updated-rule.png)
 
