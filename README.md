@@ -72,21 +72,25 @@ flowchart TB
 
 ## Workflow screenshots
 
-1. CLI entrypoint and test prompt.
+1. `00` Baseline failing detection rule before CLI validation.
 
-![CLI entrypoint](Screenshots/01-cli-start.png)
+![00 failing detection rule](Screenshots/00-Faild%20detection%20rule.png)
 
-2. Schema validation failure detection and manual/AI decision gate.
+2. `01` CLI entrypoint where the user starts `run.py`.
 
-![Schema failure and fix mode choice](Screenshots/02-schema-fail-and-choice.png)
+![01 CLI start](Screenshots/01-cli-start.png)
 
-3. AI revision preview shown to analyst before approval.
+3. `02` Schema failure is surfaced and the user chooses manual vs AI.
 
-![AI revision preview](Screenshots/03-ai-revision-preview.png)
+![02 schema failure and fix mode choice](Screenshots/02-schema-fail-and-choice.png)
 
-4. Final corrected rule persisted to the detection file.
+4. `03` AI proposes a corrected detection for analyst review.
 
-![Final updated rule in detection path](Screenshots/04-final-updated-rule.png)
+![03 AI revision preview](Screenshots/03-ai-revision-preview.png)
+
+5. `04` Final approved detection is written back to the rule file.
+
+![04 final updated rule](Screenshots/04-final-updated-rule.png)
 
 ## Repository structure
 
