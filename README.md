@@ -96,7 +96,7 @@ flowchart TB
 
 ![3.9 last fix](Screenshots/3.9%20last%20fix.png)
 
-8. `04` After accepting the approved detection is auto updated back to the rule file.
+8. `04` After accepting, the approved detection is auto updated back to the rule file.
 
 ![04 final updated rule](Screenshots/04-final-updated-rule.png)
 
