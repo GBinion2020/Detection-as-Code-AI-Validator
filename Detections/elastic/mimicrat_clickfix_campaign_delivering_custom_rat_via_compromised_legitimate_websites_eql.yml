@@ -1,0 +1,27 @@
+rule_id: 7df11ed0-bf4a-4d7a-a7f8-9d9b7c7f9a31
+name: Suspicious PowerShell With AMSI or ETW Bypass Linked to MIMICRAT ClickFix
+description: Detects PowerShell execution patterns aligned to the reported MIMICRAT ClickFix campaign, focusing on obfuscated PowerShell containing AMSI bypass, ETW tampering, or runtime string reconstruction behaviors used in the staged downloader and second-stage execution chain.
+type: eql
+language: eql
+query: "process where host.os.type == \"windows\" and event.type == \"start\" and process.name : (\"powershell.exe\",\"pwsh.exe\") and process.command_line != null and (\n  process.command_line regex~ \"\"\".*(System\\.Management\\.Automation\\.AmsiUtils|amsiInitFailed|AmsiScanBuffer|VirtualProtect|LoadLibrary|GetProcAddress|EtwEventWrite|etw).*\"\"\" or\n  process.command_line regex~ \"\"\".*(FromBase64String|Text\\.Encoding\\]::ASCII\\.GetString|ASCII\\.Encoding|IEX\\(.*Net\\.WebClient|Invoke-Expression.*DownloadString|DownloadString.*IEX|Invoke-RestMethod|WebClient).*\"\"\" or\n  process.command_line regex~ \"\"\".*(\\[char\\]|\\-join|substring|replace\\(|Split\\().*\"\"\"\n)"
+index:
+  - logs-endpoint.events.process-*
+  - winlogbeat-*
+severity: high
+risk_score: 73
+enabled: true
+tags:
+  - Elastic
+  - Windows
+  - PowerShell
+  - ClickFix
+  - MIMICRAT
+  - Defense Evasion
+  - Command and Control
+references:
+  - https://www.elastic.co/security-labs/mimicrat-custom-rat-mimics-c2-frameworks
+author:
+  - Elastic AI Assistant
+version: 1
+interval: 5m
+from: now-15m

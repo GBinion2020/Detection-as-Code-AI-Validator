@@ -1,0 +1,37 @@
+rule_id: PowerShell_Process_Execution_Example
+name: PowerShell Process Execution Example
+description: >
+  Example rule showing the repository's preferred style for detecting suspicious
+  PowerShell-driven process execution behavior.
+type: query
+language: kuery
+
+query: |
+  (process.args: "powershell.exe" or process.args: "cmd.exe") and
+  message: "Start-Process" and
+  message: "AutoIt"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - example
+
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+
+author:
+  - Gabriel_binion
+version: 1.0

@@ -1,0 +1,23 @@
+# Add one allowed query field name per line.
+# This list starts with fields already used in the current passing detections,
+# plus a small set of nearby Elastic fields that may be needed for future rules.
+
+message
+process.args
+event.category
+event.code
+process.name
+process.command_line
+process.executable
+process.parent.args
+process.parent.name
+file.name
+file.path
+host.os.type
+network.protocol
+source.ip
+destination.ip
+destination.port
+url.domain
+url.path
+user.name

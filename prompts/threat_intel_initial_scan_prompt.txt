@@ -1,0 +1,44 @@
+Analyze the provided threat intelligence and compare it against the current detection catalog.
+
+Return JSON only with this exact top-level structure:
+{
+  "report_title": "string",
+  "executive_summary": "string",
+  "risk_level": "string",
+  "confidence": "low|medium|high",
+  "attack_logic": ["string"],
+  "impacted_systems": ["string"],
+  "targets": ["string"],
+  "ttps": ["string"],
+  "tooling": ["string"],
+  "recommendations": ["string"],
+  "references": ["string"],
+  "iocs": [
+    {
+      "type": "string",
+      "value": "string",
+      "context": "string"
+    }
+  ],
+  "existing_detection_coverage": {
+    "coverage_exists": true,
+    "coverage_summary": "string",
+    "matching_detections": [
+      {
+        "path": "string",
+        "reason": "string"
+      }
+    ]
+  }
+}
+
+Requirements:
+- Focus on concise, analyst-usable output.
+- Extract only IOCs that are explicitly supported by the source material.
+- Order `attack_logic` as a simple step-by-step progression so it can be rendered into an attack flow diagram.
+- `confidence` must be exactly one of `low`, `medium`, or `high`.
+- `impacted_systems` should name operating systems, platforms, or environments at risk.
+- `targets` should describe the victim profile or asset types being targeted.
+- `matching_detections` should only include detections from the provided catalog that materially overlap the observed risk or behavior.
+- If no overlap exists, set `coverage_exists` to false and return an empty `matching_detections` array.
+- Do not include markdown fences or commentary outside the JSON object.

@@ -1,0 +1,37 @@
+rule_id: Suspicious_Telnet_Process_Example
+name: Suspicious Telnet Process Example
+description: >
+  Example rule showing the repository's preferred style for process-based
+  command-and-control detections using concise boolean KQL.
+type: query
+language: kuery
+
+query: |
+  event.category: "process" and
+  message: "telnet_client.exe" and
+  (process.args: "powershell.exe" or process.args: "cmd.exe")
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.command_and_control
+  - attack.t1071.001
+  - example
+
+references:
+  - https://attack.mitre.org/techniques/T1071/001/
+
+author:
+  - Gabriel_binion
+version: 1.0

@@ -12,9 +12,9 @@ from jsonschema.exceptions import SchemaError
 
 DEFAULT_DETECTION_GLOB = "Detections/**/*.yml"
 SCHEMA_CANDIDATES = (
-    Path("Schemas/Schema1.yaml"),
-    Path("Schemas/Schema1.yml"),
-    Path("Schemas/Schema1.json"),
+    Path("KnowledgeBase/Schemas/DefaultSchema.yaml"),
+    Path("KnowledgeBase/Schemas/DefaultSchema.yml"),
+    Path("KnowledgeBase/Schemas/DefaultSchema.json"),
 )
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_OPENAI_MODEL = "gpt-5.2"

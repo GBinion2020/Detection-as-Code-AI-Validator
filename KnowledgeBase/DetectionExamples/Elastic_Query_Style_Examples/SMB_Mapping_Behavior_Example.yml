@@ -1,0 +1,38 @@
+rule_id: SMB_Mapping_Behavior_Example
+name: SMB Mapping Behavior Example
+description: >
+  Example rule showing the repository's preferred style for suspicious lateral
+  movement detection using concise process and message matching.
+type: query
+language: kuery
+
+query: |
+  (process.args: "powershell.exe" or process.args: "cmd.exe") and
+  event.code: "4104" and
+  message: "New-SmbMapping" and
+  message: "SkipCertificateCheck"
+
+index:
+  - .ds-logs-endpoint.events.process-*
+  - .ds-logs-windows.sysmon-*
+  - .ds-logs-system.security-*
+  - .ds-logs-windows.powershell-*
+  - logs-*
+  - .ds-logs*
+
+severity: high
+risk_score: 70
+
+enabled: true
+
+tags:
+  - attack.lateral_movement
+  - attack.t1570
+  - example
+
+references:
+  - https://attack.mitre.org/techniques/T1570/
+
+author:
+  - Gabriel_binion
+version: 1.0

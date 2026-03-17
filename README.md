@@ -19,7 +19,7 @@ This project addresses those failure modes by combining strict schema validation
 The system follows a staged governance model:
 
 1. Authoring layer: analysts create or update rules under `Detections/**/*.yml`.
-2. Contract layer: rules must satisfy `Schemas/Schema1.yaml`, a JSON Schema contract for Elastic query-based detections.
+2. Contract layer: rules must satisfy `KnowledgeBase/Schemas/DefaultSchema.yaml`, a JSON Schema contract for Elastic query-based detections.
 3. Remediation layer: failing rules are routed to an interactive decision point where users choose manual editing or AI correction.
 4. Assurance layer: every corrected rule is revalidated before write-back and before CI passes.
 
@@ -49,7 +49,7 @@ flowchart TB
     U[Detection Engineer]:::human --> R[Detections/**/*.yml]:::store
     R --> C[run.py interactive CLI]:::code
     C --> V[scripts/validate_rules.py]:::code
-    V --> S[Schemas/Schema1.yaml<br/>JSON Schema contract]:::store
+    V --> S[KnowledgeBase/Schemas/DefaultSchema.yaml<br/>JSON Schema contract]:::store
     S --> D{Schema valid?}:::gate
 
     D -- Yes --> P[Rule accepted]:::gate
@@ -103,7 +103,7 @@ flowchart TB
 ## Repository structure
 
 - `Detections/`: detection content authored as YAML files.
-- `Schemas/Schema1.yaml`: JSON Schema used to validate Elastic rule structure.
+- `KnowledgeBase/Schemas/DefaultSchema.yaml`: JSON Schema used to validate Elastic rule structure.
 - `run.py`: root interactive CLI for validation and guided remediation.
 - `scripts/validate_rules.py`: non-interactive validator used locally and in CI.
 - `scripts/ai_validator.py`: AI-assisted fixer with schema-aware retry logic.
@@ -123,7 +123,7 @@ python3 run.py
 What happens:
 
 1. CLI asks whether to test detections.
-2. It validates all detection files against `Schemas/Schema1.yaml`.
+2. It validates all detection files against `KnowledgeBase/Schemas/DefaultSchema.yaml`.
 3. For each failing file, it asks:
    - `manual`: you edit and type `run again`.
    - `ai`: model proposes a corrected YAML candidate.
@@ -192,7 +192,7 @@ Recommended GitHub secret:
 
 ## Schema contract details
 
-`Schemas/Schema1.yaml` enforces:
+`KnowledgeBase/Schemas/DefaultSchema.yaml` enforces:
 
 - Required identifiers and metadata: `rule_id`, `name`, `description`, `author`, `version`.
 - Query structure for Elastic query detections: `type`, `language`, `query`, `index`.

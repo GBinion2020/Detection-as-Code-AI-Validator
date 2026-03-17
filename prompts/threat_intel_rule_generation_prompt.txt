@@ -1,0 +1,14 @@
+Create an Elastic detection rule in YAML using the provided threat-intel report and schema.
+
+Requirements:
+- Return YAML only with no markdown fences and no commentary.
+- The rule must validate against the provided schema JSON.
+- Use the requested target system and requested detection language.
+- Keep the rule tightly aligned to the threat behavior described in the report.
+- Prefer specific, implementable detection logic over broad generic matching.
+- Follow the knowledge-base examples as the authoritative house style for query structure, field usage, and metadata tone.
+- Mirror the query-writing style used in the knowledge-base examples when producing KQL/Kuery logic unless the requested language makes that impossible.
+- Use only query field names that are present in the provided allowlist context.
+- Include at least one reference back to the original threat intel source.
+- Populate required metadata fields with reasonable values when the source material does not provide them directly.
+- The rule should be deployment-safe and readable.

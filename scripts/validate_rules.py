@@ -12,9 +12,9 @@ from jsonschema.exceptions import SchemaError
 
 DETECTION_CODE = "Detections/**/*.yml"
 SCHEMA_CANDIDATES = (
-    Path("Schemas/Schema1.yaml"),
-    Path("Schemas/Schema1.yml"),
-    Path("Schemas/Schema1.json"),
+    Path("KnowledgeBase/Schemas/DefaultSchema.yaml"),
+    Path("KnowledgeBase/Schemas/DefaultSchema.yml"),
+    Path("KnowledgeBase/Schemas/DefaultSchema.json"),
 )
 AI_VALIDATOR_PATH = Path(__file__).with_name("ai_validator.py")
 

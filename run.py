@@ -1,6 +1,7 @@
 import argparse
 import glob
 import os
+import subprocess
 import sys
 
 import yaml
@@ -13,6 +14,15 @@ from scripts.ai_validator import (
     load_schema,
     request_ai_fix,
     validate_rule_text,
+)
+from scripts.threat_intel_workflow import (
+    DEFAULT_SCHEMA_CHOICE,
+    DEFAULT_SCHEMA_LABEL,
+    create_review_report,
+    generate_detection_rule_from_report,
+    normalize_and_validate_generated_rule,
+    suggest_detection_output_path,
+    write_detection_rule,
 )
 
 
@@ -82,6 +92,363 @@ def prompt_choice(prompt, valid_choices):
         if answer in allowed:
             return answer
         print(f"Please enter one of: {', '.join(sorted(allowed))}")
+
+
+def prompt_non_empty(prompt):
+    while True:
+        answer = input(prompt).strip()
+        if answer:
+            return answer
+        print("Please enter a value.")
+
+
+def prompt_existing_file_path(prompt):
+    while True:
+        file_path = input(prompt).strip()
+        if not file_path:
+            print("Please enter a file path.")
+            continue
+        expanded_path = os.path.abspath(os.path.expanduser(file_path))
+        if os.path.isfile(expanded_path):
+            return expanded_path
+        print(f"File not found: {expanded_path}")
+
+
+def prompt_output_path(prompt):
+    while True:
+        file_path = input(prompt).strip()
+        if not file_path:
+            print("Please enter a file path.")
+            continue
+        return os.path.abspath(os.path.expanduser(file_path))
+
+
+def prompt_threat_intel_file():
+    if sys.platform == "darwin":
+        apple_script = (
+            'var app = Application.currentApplication();'
+            'app.includeStandardAdditions = true;'
+            'app.chooseFile({withPrompt: "Select threat intel file"}).toString();'
+        )
+        result = subprocess.run(
+            ["osascript", "-l", "JavaScript", "-e", apple_script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            selected_file = result.stdout.strip()
+            if selected_file:
+                return os.path.abspath(selected_file)
+            print("No file was selected.")
+        else:
+            error_output = result.stderr.strip() or "unknown osascript error"
+            print(f"Could not open macOS file picker: {error_output}")
+        print("Falling back to manual file path entry.")
+        return prompt_existing_file_path("Enter the local threat intel file path: ")
+
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected_file = filedialog.askopenfilename(
+            title="Select threat intel file",
+            initialdir=os.getcwd(),
+        )
+        root.destroy()
+        if selected_file:
+            return os.path.abspath(selected_file)
+        print("No file was selected.")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Could not open file picker: {exc}")
+
+    print("Falling back to manual file path entry.")
+    return prompt_existing_file_path("Enter the local threat intel file path: ")
+
+
+def review_generated_rule_loop(
+    *,
+    initial_candidate,
+    schema,
+    model,
+    source_reference,
+    allowed_query_fields,
+    max_attempts=3,
+):
+    api_key = get_api_key()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY/OPENAI_API is not set. Cannot revise rule.")
+
+    working_text = initial_candidate
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            normalized_candidate = normalize_and_validate_generated_rule(
+                rule_text=working_text,
+                schema=schema,
+                source_reference=source_reference,
+                allowed_query_fields=set(allowed_query_fields),
+            )
+        except Exception as exc:  # noqa: BLE001
+            validation_error = str(exc)
+            working_text = request_ai_fix(
+                api_key=api_key,
+                model=model,
+                schema=schema,
+                rule_file="generated:threat_intel_rule_review",
+                rule_text=working_text,
+                validation_error=validation_error,
+            )
+            continue
+
+        print("\nProposed detection rule (review this):")
+        print("=" * 60)
+        print(normalized_candidate)
+        print("=" * 60)
+
+        approval = prompt_choice("Is this good? (yes/no): ", {"yes", "no"})
+        if approval == "yes":
+            return normalized_candidate
+
+        user_feedback = input(
+            "What should be changed? (this will be sent to AI): "
+        ).strip()
+        if not user_feedback:
+            user_feedback = "Improve the rule while preserving the detection intent and house style."
+
+        working_text = request_ai_fix(
+            api_key=api_key,
+            model=model,
+            schema=schema,
+            rule_file="generated:threat_intel_rule_review",
+            rule_text=normalized_candidate,
+            validation_error=(
+                "User requested revisions to a generated detection rule.\n\n"
+                f"User feedback:\n{user_feedback}"
+            ),
+        )
+
+    raise RuntimeError(
+        "You have run out of review attempts for the generated detection rule."
+    )
+
+
+def maybe_run_git_follow_up(file_path):
+    should_add = prompt_choice(
+        "Do you want to git add this detection file? (yes/no): ",
+        {"yes", "no"},
+    )
+    if should_add != "yes":
+        return
+
+    add_result = subprocess.run(
+        ["git", "add", file_path],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if add_result.returncode != 0:
+        print(add_result.stderr.strip() or "git add failed.")
+        return
+    print("Detection file staged.")
+
+    should_commit = prompt_choice(
+        "Do you want to create a git commit now? (yes/no): ",
+        {"yes", "no"},
+    )
+    if should_commit != "yes":
+        return
+
+    commit_message = prompt_non_empty("Enter the git commit message: ")
+    commit_result = subprocess.run(
+        ["git", "commit", "-m", commit_message],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if commit_result.returncode != 0:
+        print(commit_result.stderr.strip() or "git commit failed.")
+        return
+    print(commit_result.stdout.strip() or "Commit created.")
+
+    should_push = prompt_choice(
+        "Do you want to git push now? (yes/no): ",
+        {"yes", "no"},
+    )
+    if should_push != "yes":
+        return
+
+    push_result = subprocess.run(
+        ["git", "push"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if push_result.returncode != 0:
+        print(push_result.stderr.strip() or "git push failed.")
+        return
+    print(push_result.stdout.strip() or "Push completed.")
+
+
+def run_threat_intel_intake(model):
+    source_name = prompt_non_empty("Enter the threat intel source name: ")
+    intake_mode = prompt_choice(
+        "How do you want to provide the threat intel? (file/link): ",
+        {"file", "link"},
+    )
+
+    if intake_mode == "link":
+        source_value = prompt_non_empty("Paste the threat intel link: ")
+    else:
+        source_value = prompt_threat_intel_file()
+
+    try:
+        scan_result, report_path, opened = create_review_report(
+            source_name=source_name,
+            intake_mode=intake_mode,
+            source_value=source_value,
+            model=model,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Threat intel request failed: {exc}")
+        return 1
+
+    print("\nThreat intel intake captured.")
+    print(f"Source: {source_name}")
+    print(f"Mode: {intake_mode}")
+    print(f"Value: {source_value}")
+    print(f"Review report: {report_path}")
+    print(
+        "Existing detection coverage: "
+        + ("yes" if scan_result["coverage_exists"] else "no")
+    )
+    if scan_result["matching_detections"]:
+        print("Matching detections:")
+        for match in scan_result["matching_detections"]:
+            if isinstance(match, dict):
+                path = match.get("path", "Unknown path")
+                reason = match.get("reason", "")
+                if reason:
+                    print(f"- {path}: {reason}")
+                else:
+                    print(f"- {path}")
+            else:
+                print(f"- {match}")
+
+    if opened:
+        print("The markdown report was opened for review.")
+    else:
+        print("The markdown report could not be opened automatically.")
+
+    input("Press Enter after reviewing the markdown report...")
+
+    should_generate_rule = prompt_choice(
+        "Do you want to create the detection query and rule? (yes/no): ",
+        {"yes", "no"},
+    )
+    if should_generate_rule != "yes":
+        print("Stopping after report review.")
+        return 0
+
+    system_name = prompt_non_empty("Which system should the rule target?: ")
+    language = prompt_non_empty("Which query language should the detection use?: ")
+    print("Schema options:")
+    print(f"{DEFAULT_SCHEMA_CHOICE}. {DEFAULT_SCHEMA_LABEL}")
+    schema_choice = prompt_choice(
+        f"Choose a schema ({DEFAULT_SCHEMA_CHOICE}): ",
+        {DEFAULT_SCHEMA_CHOICE},
+    )
+
+    try:
+        generation_result = generate_detection_rule_from_report(
+            report_path=report_path,
+            scan_result=scan_result,
+            source_name=source_name,
+            system_name=system_name,
+            language=language,
+            schema_choice=schema_choice,
+            model=model,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Rule generation failed: {exc}")
+        return 1
+
+    try:
+        reviewed_rule_text = review_generated_rule_loop(
+            initial_candidate=generation_result["rule_text"],
+            schema=generation_result["schema"],
+            model=model,
+            source_reference=scan_result["source_value"],
+            allowed_query_fields=generation_result["allowed_query_fields"],
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"Rule review failed: {exc}")
+        return 1
+
+    path_suggestion = suggest_detection_output_path(
+        scan_result=scan_result,
+        system_name=system_name,
+        language=language,
+    )
+    suggested_output_path = str(path_suggestion["output_path"])
+    print(f"Suggested output path: {suggested_output_path}")
+    if path_suggestion["requires_new_folder"]:
+        print("This would create a new detection folder.")
+    if not path_suggestion["file_exists"]:
+        print("This would create a new detection file.")
+    else:
+        print("This would overwrite an existing detection file.")
+
+    use_suggested_path = prompt_choice(
+        "Do you want to save the rule to this path? (yes/no): ",
+        {"yes", "no"},
+    )
+    if use_suggested_path == "yes":
+        output_path = suggested_output_path
+    else:
+        output_path = prompt_output_path("Enter the detection output path: ")
+        parent_dir = os.path.dirname(output_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            create_folder = prompt_choice(
+                "That folder does not exist. Create it? (yes/no): ",
+                {"yes", "no"},
+            )
+            if create_folder != "yes":
+                print("Stopping without writing a detection rule.")
+                return 0
+        if not os.path.exists(output_path):
+            create_file = prompt_choice(
+                "That file does not exist yet. Create it? (yes/no): ",
+                {"yes", "no"},
+            )
+            if create_file != "yes":
+                print("Stopping without writing a detection rule.")
+                return 0
+        else:
+            overwrite_file = prompt_choice(
+                "That file already exists. Overwrite it? (yes/no): ",
+                {"yes", "no"},
+            )
+            if overwrite_file != "yes":
+                print("Stopping without writing a detection rule.")
+                return 0
+
+    confirm_post = prompt_choice(
+        "Do you want to post this detection rule to the detection folder now? (yes/no): ",
+        {"yes", "no"},
+    )
+    if confirm_post != "yes":
+        print("Stopping without writing a detection rule.")
+        return 0
+
+    saved_path = write_detection_rule(output_path, reviewed_rule_text)
+    print(f"Detection rule saved to: {saved_path}")
+    print(f"Schema used: {generation_result['schema_path']}")
+    maybe_run_git_follow_up(str(saved_path))
+    return 0
 
 
 def normalize_yaml_text(yaml_text):
@@ -250,15 +617,18 @@ def main():
         os.environ["OPENAI_MODEL"] = os.environ["MODEL"]
     selected_model = get_model_name(args.model)
 
+    print("Select a workflow:")
+    print("1. Test current detection rules")
+    print("2. Create a detection rule from threat intel")
+    workflow = prompt_choice("Enter 1 or 2: ", {"1", "2"})
+
+    if workflow == "2":
+        return run_threat_intel_intake(selected_model)
+
     files = sorted(glob.glob(args.pattern, recursive=True))
     if not files:
         print(f"No detection files found for pattern: {args.pattern}")
         return 1
-
-    run_tests = prompt_choice("Do you want to test detections? (yes/no): ", {"yes", "no"})
-    if run_tests != "yes":
-        print("Exiting without validation.")
-        return 0
 
     try:
         schema, schema_path = load_schema()
