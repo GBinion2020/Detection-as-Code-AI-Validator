@@ -1,162 +1,210 @@
-# Elastic Detection-as-Code (DaC) for Elastic SIEM with AI-Assisted Rule Repair
+# Elastic Detection-as-Code with Threat Intel to Rule Workflow
 
 [![Validate Rules](https://github.com/GBinion2020/Elastic-Detection-as-Code/actions/workflows/validate.yml/badge.svg)](https://github.com/GBinion2020/Elastic-Detection-as-Code/actions/workflows/validate.yml)
 
-This repository implements a Detection-as-Code pipeline for Elastic SIEM where detection content is treated like software: authored in version control, validated against a schema contract, corrected through a human-in-the-loop AI remediation engine, and prepared for deployment.
+This project is a high-level Detection-as-Code workflow for Elastic SIEM. It helps analysts do two core jobs:
 
-## Why this project exists
+- validate and repair existing detection rules
+- turn threat-intelligence reports into reviewable detection content with human approval gates
 
-Detection engineering quality fails most often in three places:
+The system is designed so AI helps with speed, but people stay in control of what gets accepted, written, committed, and pushed.
 
-- Rule structure drift: missing or malformed fields break downstream ingestion.
-- Query language formatting: YAML or query mistakes block deployment or produce incorrect matching behavior.
-- Review bottlenecks: manual correction cycles are slow and inconsistent.
+## Why this exists
 
-This project addresses those failure modes by combining strict schema validation with an interactive remediation workflow centered on AI-assisted correction, with analyst approval gates before write-back.
+Detection engineering usually breaks down in a few predictable places:
 
-## Architecture overview
+- rule YAML drifts away from the required schema
+- query logic is valid-looking but inconsistent with house style
+- threat intel is useful, but turning it into a reliable detection takes too long
+- teams lack a repeatable review process before rules are written into the repository
 
-The system follows a staged governance model:
+This repository addresses that by combining:
 
-1. Authoring layer: analysts create or update rules under `Detections/**/*.yml`.
-2. Contract layer: rules must satisfy `KnowledgeBase/Schemas/DefaultSchema.yaml`, a JSON Schema contract for Elastic query-based detections.
-3. Remediation layer: failing rules are routed to an interactive decision point where users choose manual editing or AI correction.
-4. Assurance layer: every corrected rule is revalidated before write-back and before CI passes.
+- schema validation
+- AI-assisted repair and generation
+- a knowledge base of working examples and guardrails
+- explicit user review before anything is written
 
-The schema contract is designed for Elastic detection rule structure and Elastic query workflows (for example `language: kuery` for KQL-based detections), with strict typing for critical fields such as `risk_score`, `severity`, `enabled`, `index`, `tags`, and `references`.
+## What the workflow does
 
-## AI remediation engine
+At a high level, the CLI supports two paths:
 
-When a rule fails schema validation, the AI remediation flow can assist with correction while keeping the analyst in control:
+1. Validate current detections already in `Detections/`
+2. Ingest threat intel from a file or link, summarize it, assess whether coverage already exists, generate a reviewable markdown report, and optionally create a new detection rule
 
-- `scripts/ai_validator.py` sends invalid detection YAML to the OpenAI Responses API with strict editing constraints.
-- The model proposes corrected YAML only; the output is revalidated against schema before any write occurs.
-- `run.py` prints the candidate in terminal, collects analyst approval, and supports iterative feedback loops.
-- If rejected, the user can provide revision guidance and the model retries (up to 3 attempts by default).
-- If approved, the corrected rule is written back to its original file path and revalidated.
-- If not approved after max attempts, the original detection content can be preserved unchanged.
-
-## System flow diagram
+## End-to-End Workflow
 
 ```mermaid
-flowchart TB
-    classDef human fill:#FFF4CC,stroke:#B7791F,color:#1A202C,stroke-width:1px;
-    classDef code fill:#E6F4FF,stroke:#2B6CB0,color:#1A202C,stroke-width:1px;
-    classDef gate fill:#E9FCE9,stroke:#2F855A,color:#1A202C,stroke-width:1px;
-    classDef warn fill:#FFE8E8,stroke:#C53030,color:#1A202C,stroke-width:1px;
-    classDef store fill:#F3E8FF,stroke:#6B46C1,color:#1A202C,stroke-width:1px;
+flowchart TD
+    U[User] --> CLI[run.py CLI]
 
-    U[Detection Engineer]:::human --> R[Detections/**/*.yml]:::store
-    R --> C[run.py interactive CLI]:::code
-    C --> V[scripts/validate_rules.py]:::code
-    V --> S[KnowledgeBase/Schemas/DefaultSchema.yaml<br/>JSON Schema contract]:::store
-    S --> D{Schema valid?}:::gate
+    CLI --> CHOICE{Choose workflow}
 
-    D -- Yes --> P[Rule accepted]:::gate
-    P --> CI[GitHub Actions<br/>validate.yml]:::code
+    CHOICE -->|1. Test current detection rules| VALIDATE[Validate Detections/**/*.yml]
+    VALIDATE --> SCHEMA[KnowledgeBase/Schemas/DefaultSchema.yaml]
+    SCHEMA --> VALID{Schema valid?}
+    VALID -->|Yes| PASS[Validation passes]
+    VALID -->|No| FIXMODE{Manual or AI fix?}
+    FIXMODE -->|Manual| MANUAL[User edits rule and reruns]
+    MANUAL --> VALIDATE
+    FIXMODE -->|AI| AIFIX[scripts/ai_validator.py]
+    AIFIX --> FIXPREVIEW[Show corrected YAML in terminal]
+    FIXPREVIEW --> FIXAPPROVE{Approve?}
+    FIXAPPROVE -->|No| FIXFEEDBACK[Collect feedback and retry]
+    FIXFEEDBACK --> AIFIX
+    FIXAPPROVE -->|Yes| FIXWRITE[Write corrected rule]
+    FIXWRITE --> VALIDATE
 
-    D -- No --> Q{Fix mode?}:::warn
-    Q -- Manual --> M[User edits file locally<br/>then types run again]:::human
-    M --> V
-
-    Q -- AI --> A[scripts/ai_validator.py<br/>OpenAI Responses API]:::code
-    A --> T[Preview corrected YAML in terminal]:::code
-    T --> H{User approves?}:::human
-    H -- Yes --> W[Write corrected YAML<br/>to original detection path]:::store
-    H -- No --> F[Collect user feedback<br/>and retry up to 3 attempts]:::warn
-    F --> A
-
-    W --> V
-    V --> CI
+    CHOICE -->|2. Create from threat intel| INGEST[Ingest file or link]
+    INGEST --> SCAN[Initial AI scan]
+    SCAN --> COVERAGE[Assess existing detection coverage]
+    COVERAGE --> REPORT[Create markdown threat report]
+    REPORT --> OPEN[Open report for user review]
+    OPEN --> GENQ{Generate rule?}
+    GENQ -->|No| STOP1[Stop]
+    GENQ -->|Yes| KB[Use KnowledgeBase examples, schema, allowlist, and policies]
+    KB --> GENRULE[Generate candidate rule]
+    GENRULE --> GUARDS[Schema check + source reference + field allowlist + confidence threshold]
+    GUARDS --> RULEVIEW[Show rule in terminal]
+    RULEVIEW --> RULEOK{Approve rule?}
+    RULEOK -->|No| RULEFEEDBACK[Collect feedback and retry]
+    RULEFEEDBACK --> GENRULE
+    RULEOK -->|Yes| SAVEQ{Post to Detections/?}
+    SAVEQ -->|No| STOP2[Stop]
+    SAVEQ -->|Yes| WRITE[Write rule to chosen path]
+    WRITE --> GITQ{Git add / commit / push?}
+    GITQ -->|Optional| DONE[Done]
 ```
 
-## Workflow screenshots
+## How it works
 
-1. `00` Baseline failing detection rule before CLI validation.
+### 1. Existing rule validation
 
-![00 failing detection rule](Screenshots/00-Faild%20detection%20rule.png)
+The validation path checks all detection YAML files against the default schema:
 
-2. `01` CLI entrypoint where the user starts `run.py`.
+- schema path: `KnowledgeBase/Schemas/DefaultSchema.yaml`
+- target content: `Detections/**/*.yml`
 
-![01 CLI start](Screenshots/01-cli-start.png)
+If a rule fails validation, the user can:
 
-3. `02` Schema failure is surfaced and the user chooses manual vs AI.
+- fix it manually and rerun validation
+- let AI propose a corrected version
 
-![02 schema failure and fix mode choice](Screenshots/02-schema-fail-and-choice.png)
+AI-proposed fixes are always shown in the terminal first. The user can reject them, request changes, or approve them before the file is updated.
 
-5. `03.5` First AI-fix view after entering AI mode.
+### 2. Threat intel to detection workflow
 
-![03.5 initial AI fix](Screenshots/03.5%20initial%20fix.png)
+The threat-intel path starts from either:
 
-6. `3.8` Analyst has the ability to request a tweak.
+- a local file uploaded to OpenAI for analysis
+- a URL analyzed through OpenAI web search
 
-![3.8 request change](Screenshots/3.8%20Request%20change.png)
+The system then:
 
-7. `3.9` Updated AI proposal reflects requested changes.
+- performs an initial scan of the report
+- extracts IOCs and attack logic
+- identifies impacted systems and likely targets
+- checks whether current detections already cover the observed risk
+- generates a short markdown report for analyst review
+- renders a Mermaid diagram of the attack flow inside that report
 
-![3.9 last fix](Screenshots/3.9%20last%20fix.png)
+After review, the user can choose whether to generate a detection rule.
 
-8. `04` After accepting, the approved detection is auto updated back to the rule file.
+### 3. Rule generation with guardrails
 
-![04 final updated rule](Screenshots/04-final-updated-rule.png)
+If the user chooses to generate a rule, the AI receives:
 
-## Repository structure
+- the reviewed markdown threat report
+- the default schema
+- a knowledge base of house-style detection examples
+- a query field allowlist
+- workflow policy settings such as minimum confidence
 
-- `Detections/`: detection content authored as YAML files.
-- `KnowledgeBase/Schemas/DefaultSchema.yaml`: JSON Schema used to validate Elastic rule structure.
-- `run.py`: root interactive CLI for validation and guided remediation.
-- `scripts/validate_rules.py`: non-interactive validator used locally and in CI.
-- `scripts/ai_validator.py`: AI-assisted fixer with schema-aware retry logic.
-- `.github/workflows/validate.yml`: CI workflow for dependency install and validation.
-- `scripts/deploy_rules.py`: optional deployment helper for pushing rules to Kibana.
+The generated rule must pass these checks before it can move forward:
 
-## Core workflows
+- schema validation succeeds
+- the rule includes at least one reference back to the original intel source
+- the query only uses allowed field names
+- the threat scan confidence meets the configured threshold
 
-### 1) Interactive local workflow (recommended, AI-first)
+The rule is then shown in the terminal for review. The user can request revisions before deciding whether to write it into `Detections/`.
 
-Run from repo root:
+### 4. Controlled write and git flow
 
-```bash
-python3 run.py
-```
+The tool does not immediately post generated detections.
 
-What happens:
+Instead it:
 
-1. CLI asks whether to test detections.
-2. It validates all detection files against `KnowledgeBase/Schemas/DefaultSchema.yaml`.
-3. For each failing file, it asks:
-   - `manual`: you edit and type `run again`.
-   - `ai`: model proposes a corrected YAML candidate.
-4. AI candidate is shown in terminal for review before write-back.
-5. You approve or reject with feedback; AI retries up to 3 times.
-6. Final result is revalidated globally before success.
+- suggests a target output path
+- asks before creating a new file
+- asks before creating a new folder
+- asks before overwriting an existing file
+- asks whether to `git add`
+- asks whether to `git commit`
+- asks whether to `git push`
 
-### 2) Non-interactive validation (CI-compatible)
+No delete operation is part of the workflow.
 
-```bash
-python3 scripts/validate_rules.py --no-ai-fix
-```
+## Repository layout
 
-Or allow auto-fix handoff:
+### Main folders
 
-```bash
-python3 scripts/validate_rules.py
-```
+- `Detections/`  
+  Detection rules that are intended for use in the SIEM.
 
-### 3) Direct AI fixer usage (targeted files)
+- `KnowledgeBase/`  
+  Shared context used to guide AI behavior and validation.
 
-```bash
-python3 scripts/ai_validator.py --files "Detections/Windows/test_fail.yml" --model gpt-5.2
-```
+- `prompts/`  
+  Prompt files used by the threat-intel scan and rule-generation workflows.
 
-## Setup instructions
+- `scripts/`  
+  Workflow and API helper modules.
+
+### Knowledge base contents
+
+- `KnowledgeBase/Schemas/DefaultSchema.yaml`  
+  The default validation contract for Elastic detection rules.
+
+- `KnowledgeBase/DetectionExamples/Elastic_Query_Style_Examples/`  
+  Neutral example rules derived from working detection patterns already accepted by the SIEM.
+
+- `KnowledgeBase/Guides/Elastic_Query_Style_Guide.md`  
+  High-level guidance for query shape, metadata style, and rule structure.
+
+- `KnowledgeBase/Policies/Elastic_Query_Field_Allowlist.txt`  
+  Allowed query field names for generated rules.
+
+- `KnowledgeBase/Policies/ThreatIntelWorkflow.yaml`  
+  Workflow guardrails such as minimum scan confidence.
+
+## Core components
+
+- `run.py`  
+  Main interactive CLI for both validation and threat-intel workflows.
+
+- `scripts/validate_rules.py`  
+  Non-interactive validator for local use and CI.
+
+- `scripts/ai_validator.py`  
+  AI-assisted rule repair for invalid detections.
+
+- `scripts/file_requests.py`  
+  Handles file-based threat-intel submission to OpenAI.
+
+- `scripts/web_requests.py`  
+  Handles link-based threat-intel analysis through OpenAI web search.
+
+- `scripts/threat_intel_workflow.py`  
+  Coordinates the threat-intel scan, report generation, guardrails, and rule generation.
+
+## Setup
 
 ### Prerequisites
 
 - Python 3.10+
 - `pip`
-- OpenAI API key (for AI remediation)
-- Optional: Elastic/Kibana API access for deployment
+- OpenAI API key
 
 ### Install dependencies
 
@@ -164,52 +212,105 @@ python3 scripts/ai_validator.py --files "Detections/Windows/test_fail.yml" --mod
 python3 -m pip install -r requirements.txt
 ```
 
-### Configure environment variables (required for AI remediation)
+### Configure environment
 
-Create `.env` in repo root:
+Create a `.env` file in the repository root:
 
 ```bash
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-5.2
 ```
 
-Compatibility aliases are also supported:
+Supported aliases:
 
-- `OPENAI_API` (alias for `OPENAI_API_KEY`)
-- `MODEL` (alias for `OPENAI_MODEL`)
+- `OPENAI_API` for `OPENAI_API_KEY`
+- `MODEL` for `OPENAI_MODEL`
 
-## CI behavior (AI-aware validation)
+## How to use
 
-The workflow in `.github/workflows/validate.yml`:
+### Interactive CLI
 
-1. Installs dependencies from `requirements.txt`.
-2. Runs `scripts/validate_rules.py`.
-3. Uses `OPENAI_API_KEY` and `OPENAI_MODEL` from workflow environment for AI-assisted repair when needed.
+Run:
 
-Recommended GitHub secret:
+```bash
+python3 run.py
+```
+
+You will then choose:
+
+1. `Test current detection rules`
+2. `Create a detection rule from threat intel`
+
+### Validate current detections
+
+This path:
+
+- loads the default schema
+- checks detections under `Detections/`
+- offers manual or AI-assisted repair for invalid rules
+- revalidates before completion
+
+### Build from threat intel
+
+This path:
+
+- accepts a file or link
+- creates and opens a markdown report
+- asks whether to generate a rule
+- asks for target system, language, and schema choice
+- previews the generated rule in terminal
+- allows iterative revision
+- optionally writes the approved rule
+- optionally stages, commits, and pushes it
+
+## Example commands
+
+### Run the main workflow
+
+```bash
+python3 run.py
+```
+
+### Validate all rules non-interactively
+
+```bash
+python3 scripts/validate_rules.py --no-ai-fix
+```
+
+### Validate and allow AI fixer
+
+```bash
+python3 scripts/validate_rules.py
+```
+
+## CI
+
+GitHub Actions runs repository validation through the existing workflow:
+
+- install dependencies
+- validate rules
+- fail the build if the rule set is invalid
+
+Recommended secret:
 
 - `OPENAI_API_KEY`
 
-## Schema contract details
+## Design principles
 
-`KnowledgeBase/Schemas/DefaultSchema.yaml` enforces:
+- AI assists, humans approve
+- guardrails are enforced in code, not just in prompts
+- schema validation is mandatory
+- query style should stay consistent with working in-repo patterns
+- threat intel should produce a review artifact before producing a rule
 
-- Required identifiers and metadata: `rule_id`, `name`, `description`, `author`, `version`.
-- Query structure for Elastic query detections: `type`, `language`, `query`, `index`.
-- Risk semantics: `severity` enum and bounded integer `risk_score`.
-- Boolean state control: `enabled`.
-- Minimum list quality constraints: `tags`, `references`, and `index`.
+## Security notes
 
-This contract is intentionally strict to reduce deployment failures and preserve operational consistency in Elastic SIEM.
+- never commit live API keys
+- rotate keys immediately if exposed
+- use least-privilege credentials where possible
+- review AI output before accepting it
 
-## Security and operational notes
-
-- Never commit live API keys to version control.
-- Rotate keys immediately if exposed.
-- Use least-privilege API keys for deployment and remediation tasks.
-- Validate all AI-proposed rules before approving write-back.
-
-## Quick start for contributors
+## Quick start
 
 ```bash
 git clone https://github.com/GBinion2020/Elastic-Detection-as-Code.git
